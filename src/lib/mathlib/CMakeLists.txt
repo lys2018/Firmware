@@ -33,6 +33,6 @@
 
 px4_add_library(mathlib
 	math/test/test.cpp
-	math/matrix_alg.cpp
 	math/filter/LowPassFilter2p.cpp
 )
+target_include_directories(mathlib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
