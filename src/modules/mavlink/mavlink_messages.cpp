@@ -885,6 +885,7 @@ public:
 
 private:
 	MavlinkOrbSubscription *_status_sub;
+	MavlinkOrbSubscription *_telemetry_status_sub;
 	MavlinkOrbSubscription *_att_sub;
 	uint64_t _att_time;
 
@@ -896,6 +897,7 @@ private:
 protected:
 	explicit MavlinkStreamAttitude(Mavlink *mavlink) : MavlinkStream(mavlink),
 		_status_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_status))),
+		_telemetry_status_sub(_mavlink->add_orb_subscription(ORB_ID(telemetry_status))),
 		_att_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_attitude))),
 		_att_time(0)
 	{}
@@ -908,10 +910,19 @@ protected:
 			vehicle_status_s status = {};
 			_status_sub->update(&status);
 
+			telemetry_status_s telemetry_status = {};
+			_telemetry_status_sub->update(&telemetry_status);
+
 			mavlink_attitude_t msg = {};
 			msg.time_boot_ms = att.timestamp / 1000;
 
-			if (!(status.is_vtol && status.is_vtol_tailsitter && !status.is_rotary_wing)) {
+			// Tailsitters in fixed wing mode require to report rotated attitude to GCS
+			bool do_tailsitter_attitude_rotation = (status.is_vtol          // this system is a vtol
+								&& status.is_vtol_tailsitter                // of tailsitter type
+								&& !status.is_rotary_wing					// that is flying in fixed wing mode
+								&& (telemetry_status.system_id == 255));    // and we are talking to a ground control station
+
+			if (!do_tailsitter_attitude_rotation) {
 				// Normal attitude
 				matrix::Eulerf euler = matrix::Quatf(att.q);
 				msg.roll = euler.phi();
@@ -977,6 +988,7 @@ public:
 
 private:
 	MavlinkOrbSubscription *_status_sub;
+	MavlinkOrbSubscription *_telemetry_status_sub;
 	MavlinkOrbSubscription *_att_sub;
 	uint64_t _att_time;
 
@@ -987,6 +999,7 @@ private:
 protected:
 	explicit MavlinkStreamAttitudeQuaternion(Mavlink *mavlink) : MavlinkStream(mavlink),
 		_status_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_status))),
+		_telemetry_status_sub(_mavlink->add_orb_subscription(ORB_ID(telemetry_status))),
 		_att_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_attitude))),
 		_att_time(0)
 	{}
@@ -999,10 +1012,19 @@ protected:
 			vehicle_status_s status = {};
 			_status_sub->update(&status);
 
+			telemetry_status_s telemetry_status = {};
+			_telemetry_status_sub->update(&telemetry_status);
+
 			mavlink_attitude_quaternion_t msg = {};
 			msg.time_boot_ms = att.timestamp / 1000;
 
-			if (!(status.is_vtol && status.is_vtol_tailsitter && !status.is_rotary_wing)) {
+			// Tailsitters in fixed wing mode require to report rotated attitude to GCS
+			bool do_tailsitter_attitude_rotation = (status.is_vtol          // this system is a vtol
+								&& status.is_vtol_tailsitter                // of tailsitter type
+								&& !status.is_rotary_wing					// that is flying in fixed wing mode
+								&& (telemetry_status.system_id == 255));    // and we are talking to a ground control station
+
+			if (!do_tailsitter_attitude_rotation) {
 				// Normal attitude
 				msg.q1 = att.q[0];
 				msg.q2 = att.q[1];
